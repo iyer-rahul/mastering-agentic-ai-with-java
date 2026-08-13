@@ -1,0 +1,257 @@
+{
+  "uid": "ecommerce-ai",
+  "title": "E-Commerce AI Monitoring",
+  "description": "Health, cost and answer quality of the AI features. Spring AI supplies the model-level metrics; ecommerce_ai_* are the app's own, so a problem can be traced to a specific feature.",
+  "tags": ["e-commerce", "spring-ai", "rag"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Overview",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "stat",
+      "title": "AI requests / min",
+      "description": "How much the AI features are actually being used.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqpm", "decimals": 1, "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "text", "value": null } ] } },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "expr": "sum(rate(ecommerce_ai_feature_seconds_count[5m])) * 60", "legendFormat": "requests/min" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "AI failure rate",
+      "description": "Share of AI feature calls that threw. Some callers swallow the error and still return 200, so this will not show up in HTTP error metrics.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "decimals": 1, "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 1 },
+            { "color": "red", "value": 5 } ] } },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "expr": "100 * (sum(rate(ecommerce_ai_feature_seconds_count{outcome=\"failure\"}[5m])) or vector(0)) / clamp_min(sum(rate(ecommerce_ai_feature_seconds_count[5m])), 0.0001)", "legendFormat": "failure %" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Empty retrieval rate",
+      "description": "Retrievals that found no grounding at all. When this climbs the assistant is answering from general knowledge instead of your data - the earliest warning that indexing broke or the similarity threshold is too strict.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "unit": "percent", "decimals": 1, "min": 0, "max": 100,
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 20 },
+            { "color": "red", "value": 50 } ] } },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "expr": "100 * (sum(rate(ecommerce_ai_retrieval_empty_total[5m])) or vector(0)) / clamp_min(sum(rate(ecommerce_ai_retrieval_documents_count[5m])), 0.0001)", "legendFormat": "empty %" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Tokens used (total)",
+      "description": "Cumulative tokens since the app started. Multiply by your model's per-token price to get spend.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "purple" } },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area" },
+      "targets": [
+        { "refId": "A", "expr": "sum(gen_ai_client_token_usage_total{gen_ai_token_type=\"total\"})", "legendFormat": "tokens" }
+      ]
+    },
+
+    {
+      "type": "row",
+      "title": "Per-feature behaviour",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests per second by feature",
+      "description": "Which AI features customers and admins actually reach for.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "fillOpacity": 10, "lineWidth": 2 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (feature) (rate(ecommerce_ai_feature_seconds_count[5m]))", "legendFormat": "{{feature}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 latency by feature",
+      "description": "The number a user notices. Averages hide the slow LLM calls, so this is p95 rather than mean.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "fillOpacity": 5, "lineWidth": 2 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] } },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (feature, le) (rate(ecommerce_ai_feature_seconds_bucket[5m])))", "legendFormat": "{{feature}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Failures by feature",
+      "description": "AI calls that threw, split by feature.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "fillOpacity": 20, "lineWidth": 1 },
+          "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (feature) (rate(ecommerce_ai_feature_seconds_count{outcome=\"failure\"}[5m]))", "legendFormat": "{{feature}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Degraded responses (AI failed, request still served)",
+      "description": "Fallbacks: an untriaged ticket, a generic suggestion note, a raw return reason. These return HTTP 200, so this panel is the only place they are visible.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "fillOpacity": 20, "lineWidth": 1 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "bottom", "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (feature, reason) (rate(ecommerce_ai_degraded_total[5m]))", "legendFormat": "{{feature}} / {{reason}}" }
+      ]
+    },
+
+    {
+      "type": "row",
+      "title": "Model and retrieval internals",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Token usage per second by type",
+      "description": "Input vs output tokens. Output is the expensive half on most models, and a sudden jump in input usually means a prompt or retrieved context grew.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "fillOpacity": 15, "lineWidth": 2, "stacking": { "mode": "normal" } } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (gen_ai_token_type) (rate(gen_ai_client_token_usage_total{gen_ai_token_type!=\"total\"}[5m]))", "legendFormat": "{{gen_ai_token_type}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Model call p95 latency",
+      "description": "Time spent inside OpenAI, by model. Compare against per-feature latency to tell provider slowness apart from your own code.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "fillOpacity": 5, "lineWidth": 2 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] } },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (gen_ai_request_model, gen_ai_operation_name, le) (rate(gen_ai_client_operation_seconds_bucket[5m])))", "legendFormat": "{{gen_ai_operation_name}} / {{gen_ai_request_model}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Documents retrieved per request (avg)",
+      "description": "How much grounding each feature is getting. A steady fall towards zero means retrieval quality is degrading even while everything still returns 200.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "decimals": 2, "custom": { "fillOpacity": 10, "lineWidth": 2 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (feature) (rate(ecommerce_ai_retrieval_documents_sum[5m])) / clamp_min(sum by (feature) (rate(ecommerce_ai_retrieval_documents_count[5m])), 0.0001)", "legendFormat": "{{feature}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Vector store operation latency (p95)",
+      "description": "pgvector query time. If retrieval is slow, this separates the database from the embedding call.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "fillOpacity": 5, "lineWidth": 2 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] } },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (db_operation_name, le) (rate(db_vector_client_operation_seconds_bucket[5m])))", "legendFormat": "{{db_operation_name}}" },
+        { "refId": "B", "expr": "sum by (db_operation_name) (rate(db_vector_client_operation_seconds_sum[5m])) / clamp_min(sum by (db_operation_name) (rate(db_vector_client_operation_seconds_count[5m])), 0.0001)", "legendFormat": "{{db_operation_name}} (avg)" }
+      ]
+    },
+
+    {
+      "type": "row",
+      "title": "Application",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 }
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP p95 latency for AI endpoints",
+      "description": "End-to-end request time as the browser sees it, for the /ai/ routes only.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 41 },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "fillOpacity": 5, "lineWidth": 2 } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "expr": "histogram_quantile(0.95, sum by (uri, le) (rate(http_server_requests_seconds_bucket{uri=~\".*/ai/.*\"}[5m])))", "legendFormat": "{{uri}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "HTTP responses by status",
+      "description": "Overall app traffic and errors, so AI problems can be seen in context.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 41 },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "fillOpacity": 15, "lineWidth": 1, "stacking": { "mode": "normal" } } },
+        "overrides": []
+      },
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull"] } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (status) (rate(http_server_requests_seconds_count[5m]))", "legendFormat": "{{status}}" }
+      ]
+    }
+  ]
+}

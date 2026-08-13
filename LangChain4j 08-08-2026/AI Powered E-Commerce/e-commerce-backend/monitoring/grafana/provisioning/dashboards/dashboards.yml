@@ -1,0 +1,13 @@
+# Loads any dashboard JSON dropped into /var/lib/grafana/dashboards on startup, so the
+# dashboard lives in git next to the code instead of only inside someone's Grafana.
+apiVersion: 1
+providers:
+  - name: 'e-commerce'
+    orgId: 1
+    folder: 'E-Commerce'
+    type: file
+    disableDeletion: false
+    updateIntervalSeconds: 30
+    allowUiUpdates: true
+    options:
+      path: /var/lib/grafana/dashboards

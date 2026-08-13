@@ -1,0 +1,43 @@
+# Monitoring stack: Prometheus collects the app's metrics, Grafana shows them.
+# Start it from this folder:   docker compose up -d
+# (Your Spring Boot app must be running on port 8080.)
+#
+#   Prometheus  http://localhost:9090
+#   Grafana     http://localhost:3000   (admin / admin)
+#
+# This is separate from the app's own docker-compose.yml on purpose: the database is part of
+# running the app, monitoring is not, so you can start and stop it independently.
+
+# Explicit project name. Compose otherwise names the project after the folder, and every course
+# project has a folder called "monitoring" - so starting this one would tear down another
+# project's Prometheus and Grafana.
+name: ecommerce-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ecommerce-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+    # prometheus.yml scrapes the app on host.docker.internal. That name is not always resolvable
+    # from inside a container, so map it explicitly to the host gateway. Without this the target
+    # sits at DOWN with "no such host" and every dashboard panel stays empty.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ecommerce-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      # Auto-connects Grafana to Prometheus and loads the dashboard (no manual setup needed).
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
+    depends_on:
+      - prometheus
